@@ -15,7 +15,7 @@
 # Optional env:
 #   FEEDS         newline-separated `src-git <name> <url>` lines for feeds.conf;
 #                 a name already in feeds.conf replaces that feed (fork stand-in)
-#   CONFIG_FRAGMENT  repo-relative .config fragment appended last
+#   CONFIG_FRAGMENT  repo-relative .config fragment appended last (flavour, e.g. mesh)
 #   COMMON        devices/<COMMON> holding the shared config and overlays (default: common)
 
 set -euo pipefail
@@ -90,18 +90,6 @@ for p in "$BUILDER_REPO/patches/feeds/$VARIANT"/*/*.patch; do
     log::die "$(basename "$p") does not apply to $feed"
   fi
 done
-# patches/tree/<variant>/*.patch carry fixes still pending upstream; one that
-# main has merged reverse-applies and is skipped.
-for p in "$BUILDER_REPO/patches/tree/$VARIANT"/*.patch; do
-  if patch -p1 --dry-run --forward <"$p" >/dev/null 2>&1; then
-    log::info "Patching the tree with $(basename "$p")"
-    patch -p1 --forward <"$p"
-  elif patch -p1 --dry-run --reverse <"$p" >/dev/null 2>&1; then
-    log::info "Skipping $(basename "$p") (already applied)"
-  else
-    log::die "$(basename "$p") does not apply to the tree"
-  fi
-done
 shopt -u nullglob
 
 # 2. Assemble .config from the common + device configs, then resolve.
@@ -156,5 +144,9 @@ for src in "$COMMON_DIR/files" "$COMMON_DIR/files.$VARIANT" \
   fi
 done
 
+# Lock down sshd_config if shipped.
+if [[ -f files/etc/ssh/sshd_config ]]; then
+  chmod 0600 files/etc/ssh/sshd_config
+fi
 
 log::info "Build environment ready for variant '$VARIANT' on device '$DEVICE'."
